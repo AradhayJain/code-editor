@@ -6,28 +6,34 @@ const { Server } = require('socket.io');
 const ACTIONS = require('./src/Actions');
 
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: {
+        origin: '*', // Allow all origins (adjust this for security in production)
+        methods: ['GET', 'POST'],
+    },
+});
 
-app.use(express.static('build'));
-app.use((req, res, next) => {
+// Serve static files from build folder
+app.use(express.static(path.join(__dirname, 'build')));
+
+app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
+// Store user socket mapping
 const userSocketMap = {};
+
 function getAllConnectedClients(roomId) {
-    // Map
     return Array.from(io.sockets.adapter.rooms.get(roomId) || []).map(
-        (socketId) => {
-            return {
-                socketId,
-                username: userSocketMap[socketId],
-            };
-        }
+        (socketId) => ({
+            socketId,
+            username: userSocketMap[socketId],
+        })
     );
 }
 
 io.on('connection', (socket) => {
-    console.log('socket connected', socket.id);
+    console.log('Socket connected:', socket.id);
 
     socket.on(ACTIONS.JOIN, ({ roomId, username }) => {
         userSocketMap[socket.id] = username;
@@ -63,5 +69,6 @@ io.on('connection', (socket) => {
     });
 });
 
-const port = process.env.PORT || 5000;
-server.listen(port, () => console.log(`Listening on port ${port}`));
+// Ensure the server listens on the correct host & port for Render
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, '0.0.0.0', () => console.log(`Listening on port ${PORT}`));
